@@ -277,12 +277,14 @@ const MIN_NOTE_WIDTH = 160;
 const MIN_NOTE_HEIGHT = 40;
 
 function attachResizeHandler(handle, el, id, edges) {
+  const textEl = el.querySelector(".note-text");
   let startX = 0;
   let startY = 0;
   let startWidth = 0;
   let startHeight = 0;
   let startLeft = 0;
   let startTop = 0;
+  let verticalChrome = 0; // 노트 높이 중 글자 영역이 아닌 패딩/테두리 몫
   let pointerId = null;
 
   handle.addEventListener("pointerdown", (e) => {
@@ -294,6 +296,7 @@ function attachResizeHandler(handle, el, id, edges) {
     startHeight = el.offsetHeight;
     startLeft = parseFloat(el.style.left) || 0;
     startTop = parseFloat(el.style.top) || 0;
+    verticalChrome = el.offsetHeight - textEl.offsetHeight;
     pointerId = e.pointerId;
     resizingNoteId = id;
     bringToFront(el);
@@ -313,17 +316,21 @@ function attachResizeHandler(handle, el, id, edges) {
       width = Math.max(MIN_NOTE_WIDTH, startWidth - dx);
       left = startLeft + (startWidth - width);
     }
+    el.style.width = `${width}px`; // 세로 손잡이가 textEl.scrollHeight를 측정하기 전에 새 폭을 먼저 반영한다
 
     let height = startHeight;
     let top = startTop;
-    if (edges.bottom) {
-      height = Math.max(MIN_NOTE_HEIGHT, startHeight + dy);
-    } else if (edges.top) {
-      height = Math.max(MIN_NOTE_HEIGHT, startHeight - dy);
-      top = startTop + (startHeight - height);
+    if (edges.bottom || edges.top) {
+      // 글자가 실제로 차지하는 범위보다 작게는 줄어들지 않게 한다
+      const minHeight = Math.max(MIN_NOTE_HEIGHT, textEl.scrollHeight + verticalChrome);
+      if (edges.bottom) {
+        height = Math.max(minHeight, startHeight + dy);
+      } else {
+        height = Math.max(minHeight, startHeight - dy);
+        top = startTop + (startHeight - height);
+      }
     }
 
-    el.style.width = `${width}px`;
     el.style.height = `${height}px`;
     el.style.left = `${left}px`;
     el.style.top = `${top}px`;
