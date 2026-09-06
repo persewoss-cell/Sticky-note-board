@@ -286,7 +286,7 @@ button, input {
   border-bottom: 6px solid var(--sticky-edge);
   width: 22vw;
   min-width: 200px;
-  min-height: 88px;
+  min-height: 46px;
   height: auto;
   font-family: 'Noto Sans KR', sans-serif;
   font-size: 16px;

@@ -34,6 +34,13 @@ let editingNoteId = null; // 편집 중인 노트는 원격 텍스트 업데이�
 let resizingNoteId = null; // 크기 조정 중인 노트는 원격 크기 업데이트로 덮어쓰지 않는다
 const noteElements = new Map(); // noteId -> element
 const textDebounceTimers = new Map();
+let frontZIndex = 10;
+
+// 마지막으로 만지거나 옮긴 노트가 항상 다른 노트들보다 앞쪽(위)에 오도록 한다
+function bringToFront(el) {
+  frontZIndex += 1;
+  el.style.zIndex = frontZIndex;
+}
 
 // ---------- 홈으로 나가기 (설명 후 확인) ----------
 homeBtn.addEventListener("click", () => {
@@ -187,10 +194,11 @@ function createNoteElement(id, data) {
   el.appendChild(delBtn);
 
   attachMoveHandlers(moveHandle, el, id);
-  attachTextHandlers(text, id);
+  attachTextHandlers(text, el, id);
 
   boardCanvas.appendChild(el);
   noteElements.set(id, el);
+  bringToFront(el);
   refreshCanvasHeight();
   return el;
 }
@@ -229,6 +237,7 @@ function attachMoveHandlers(handle, el, id) {
     pointerId = e.pointerId;
     draggingNoteId = id;
     el.classList.add("dragging");
+    bringToFront(el);
     handle.setPointerCapture(pointerId);
   });
 
@@ -287,6 +296,7 @@ function attachResizeHandler(handle, el, id, edges) {
     startTop = parseFloat(el.style.top) || 0;
     pointerId = e.pointerId;
     resizingNoteId = id;
+    bringToFront(el);
     handle.setPointerCapture(pointerId);
   });
 
@@ -344,9 +354,10 @@ function attachResizeHandler(handle, el, id, edges) {
 }
 
 // ---------- 텍스트 편집 (그 외 영역은 클릭하면 그냥 커서만 놓인다) ----------
-function attachTextHandlers(textEl, id) {
+function attachTextHandlers(textEl, el, id) {
   textEl.addEventListener("focus", () => {
     editingNoteId = id;
+    bringToFront(el);
   });
 
   textEl.addEventListener("input", () => {
