@@ -288,9 +288,7 @@ button, input {
   height: auto;
   font-family: 'Noto Sans KR', sans-serif;
   font-size: 16px;
-  transform: rotate(-1deg);
 }
-.note.sticky:nth-child(odd) { transform: rotate(1deg); }
 
 .note.unit {
   background: var(--unit);
@@ -322,7 +320,7 @@ button, input {
 .note .move-handle {
   position: absolute;
   top: -10px;
-  right: -42px;
+  right: 20px;
   width: 26px;
   height: 26px;
   border-radius: 50%;
@@ -335,48 +333,20 @@ button, input {
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 2;
 }
 .note .move-handle:active { cursor: grabbing; }
 
-.note .resize-handle-h {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 12px;
-  width: 12px;
-  cursor: ew-resize;
-}
-.note .resize-handle-h::after {
-  content: "";
-  position: absolute;
-  right: 3px;
-  top: 50%;
-  width: 3px;
-  height: 22px;
-  transform: translateY(-50%);
-  background: rgba(0,0,0,0.18);
-  border-radius: 2px;
-}
-
-.note .resize-handle-v {
-  position: absolute;
-  left: 0;
-  right: 12px;
-  bottom: 0;
-  height: 12px;
-  cursor: ns-resize;
-}
-.note .resize-handle-v::after {
-  content: "";
-  position: absolute;
-  bottom: 3px;
-  left: 50%;
-  height: 3px;
-  width: 22px;
-  transform: translateX(-50%);
-  background: rgba(0,0,0,0.18);
-  border-radius: 2px;
-}
+/* 크기 조정 손잡이: 시각적 표시 없이 가장자리/모서리에 마우스를 올렸을 때 커서로만 알려준다 */
+.note .rz-edge { position: absolute; }
+.note .rz-e-top    { top: 0; left: 14px; right: 14px; height: 8px; cursor: ns-resize; }
+.note .rz-e-bottom { bottom: 0; left: 14px; right: 14px; height: 8px; cursor: ns-resize; }
+.note .rz-e-left   { left: 0; top: 14px; bottom: 14px; width: 8px; cursor: ew-resize; }
+.note .rz-e-right  { right: 0; top: 14px; bottom: 14px; width: 8px; cursor: ew-resize; }
+.note .rz-c-tl { top: 0; left: 0; width: 14px; height: 14px; cursor: nwse-resize; }
+.note .rz-c-tr { top: 0; right: 0; width: 14px; height: 14px; cursor: nesw-resize; }
+.note .rz-c-bl { bottom: 0; left: 0; width: 14px; height: 14px; cursor: nesw-resize; }
+.note .rz-c-br { bottom: 0; right: 0; width: 14px; height: 14px; cursor: nwse-resize; }
 
 .note .note-delete {
   position: absolute;
@@ -394,6 +364,7 @@ button, input {
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 2;
 }
 .note .note-delete:hover { background: #fdeaea; }
 

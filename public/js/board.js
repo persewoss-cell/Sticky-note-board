@@ -163,24 +163,31 @@ function createNoteElement(id, data) {
     await deleteDoc(doc(db, "boards", boardId, "notes", id));
   });
 
-  const resizeHandleH = document.createElement("div");
-  resizeHandleH.className = "resize-handle-h";
-  resizeHandleH.title = "드래그해서 폭 조정";
-
-  const resizeHandleV = document.createElement("div");
-  resizeHandleV.className = "resize-handle-v";
-  resizeHandleV.title = "드래그해서 높이 조정";
-
   el.appendChild(text);
-  el.appendChild(resizeHandleH);
-  el.appendChild(resizeHandleV);
+
+  // 크기 조정: 상하좌우 가장자리 + 네 모서리(대각선) 전부 지원. 시각 표시는 없고 커서로만 알려준다.
+  const RESIZE_ZONES = [
+    ["rz-e-top", { top: true }],
+    ["rz-e-bottom", { bottom: true }],
+    ["rz-e-left", { left: true }],
+    ["rz-e-right", { right: true }],
+    ["rz-c-tl", { top: true, left: true }],
+    ["rz-c-tr", { top: true, right: true }],
+    ["rz-c-bl", { bottom: true, left: true }],
+    ["rz-c-br", { bottom: true, right: true }],
+  ];
+  RESIZE_ZONES.forEach(([className, edges]) => {
+    const zone = document.createElement("div");
+    zone.className = `rz-edge ${className}`;
+    el.appendChild(zone);
+    attachResizeHandler(zone, el, id, edges);
+  });
+
   el.appendChild(moveHandle);
   el.appendChild(delBtn);
 
   attachMoveHandlers(moveHandle, el, id);
   attachTextHandlers(text, id);
-  attachResizeHandler(resizeHandleH, el, id, "x");
-  attachResizeHandler(resizeHandleV, el, id, "y");
 
   boardCanvas.appendChild(el);
   noteElements.set(id, el);
@@ -256,17 +263,28 @@ function attachMoveHandlers(handle, el, id) {
   handle.addEventListener("pointercancel", endDrag);
 }
 
-// ---------- 크기 조정 (오른쪽 가장자리 = 폭, 아래쪽 가장자리 = 높이. 대각선 동시 조정은 없음) ----------
-function attachResizeHandler(handle, el, id, axis) {
-  let start = 0;
-  let startSize = 0;
+// ---------- 크기 조정 (가장자리 4곳 + 모서리 4곳, 모서리는 가로/세로 동시 조정) ----------
+const MIN_NOTE_WIDTH = 160;
+const MIN_NOTE_HEIGHT = 40;
+
+function attachResizeHandler(handle, el, id, edges) {
+  let startX = 0;
+  let startY = 0;
+  let startWidth = 0;
+  let startHeight = 0;
+  let startLeft = 0;
+  let startTop = 0;
   let pointerId = null;
 
   handle.addEventListener("pointerdown", (e) => {
     e.stopPropagation();
     e.preventDefault();
-    start = axis === "x" ? e.clientX : e.clientY;
-    startSize = axis === "x" ? el.offsetWidth : el.offsetHeight;
+    startX = e.clientX;
+    startY = e.clientY;
+    startWidth = el.offsetWidth;
+    startHeight = el.offsetHeight;
+    startLeft = parseFloat(el.style.left) || 0;
+    startTop = parseFloat(el.style.top) || 0;
     pointerId = e.pointerId;
     resizingNoteId = id;
     handle.setPointerCapture(pointerId);
@@ -274,10 +292,31 @@ function attachResizeHandler(handle, el, id, axis) {
 
   handle.addEventListener("pointermove", (e) => {
     if (pointerId === null || e.pointerId !== pointerId) return;
-    const current = axis === "x" ? e.clientX : e.clientY;
-    const newSize = Math.max(axis === "x" ? 160 : 40, startSize + (current - start));
-    if (axis === "x") el.style.width = `${newSize}px`;
-    else el.style.height = `${newSize}px`;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+
+    let width = startWidth;
+    let left = startLeft;
+    if (edges.right) {
+      width = Math.max(MIN_NOTE_WIDTH, startWidth + dx);
+    } else if (edges.left) {
+      width = Math.max(MIN_NOTE_WIDTH, startWidth - dx);
+      left = startLeft + (startWidth - width);
+    }
+
+    let height = startHeight;
+    let top = startTop;
+    if (edges.bottom) {
+      height = Math.max(MIN_NOTE_HEIGHT, startHeight + dy);
+    } else if (edges.top) {
+      height = Math.max(MIN_NOTE_HEIGHT, startHeight - dy);
+      top = startTop + (startHeight - height);
+    }
+
+    el.style.width = `${width}px`;
+    el.style.height = `${height}px`;
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
     refreshCanvasHeight();
   });
 
@@ -288,14 +327,13 @@ function attachResizeHandler(handle, el, id, axis) {
     const width = el.offsetWidth;
     const height = el.offsetHeight;
     let x = parseFloat(el.style.left) || 0;
-    const clampedX = clampX(x, width);
-    if (clampedX !== x) {
-      x = clampedX;
-      el.style.left = `${x}px`;
-    }
+    const y = Math.max(0, parseFloat(el.style.top) || 0);
+    x = clampX(x, width);
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
     refreshCanvasHeight();
     try {
-      await updateDoc(doc(db, "boards", boardId, "notes", id), { width, height, x });
+      await updateDoc(doc(db, "boards", boardId, "notes", id), { width, height, x, y });
     } catch (err) {
       console.error(err);
     }
