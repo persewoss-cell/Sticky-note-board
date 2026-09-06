@@ -75,11 +75,17 @@ button, input {
 
 .board-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 150px));
-  justify-content: center;
-  gap: 16px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 14px;
   max-width: 1100px;
   margin: 0 auto;
+}
+
+@media (max-width: 900px) {
+  .board-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .board-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 .empty-message {
@@ -271,18 +277,17 @@ button, input {
   min-width: 220px;
   max-width: min(560px, calc(100vw - 40px));
   box-shadow: 0 4px 10px rgba(0,0,0,0.18);
-  cursor: grab;
   user-select: none;
 }
-.note.dragging { cursor: grabbing; z-index: 50; box-shadow: 0 10px 22px rgba(0,0,0,0.3); }
+.note.dragging { z-index: 50; box-shadow: 0 10px 22px rgba(0,0,0,0.3); }
 
 .note.sticky {
   background: var(--sticky);
   border-bottom: 6px solid var(--sticky-edge);
   min-height: 88px;
   height: auto;
-  font-family: 'Gaegu', 'Noto Sans KR', sans-serif;
-  font-size: 19px;
+  font-family: 'Noto Sans KR', sans-serif;
+  font-size: 16px;
   transform: rotate(-1deg);
 }
 .note.sticky:nth-child(odd) { transform: rotate(1deg); }
@@ -294,29 +299,54 @@ button, input {
   height: auto;
   min-width: 180px;
   border-radius: 10px;
-  font-size: 16px;
-  font-weight: 500;
-  padding: 10px 14px;
+  font-size: 21px;
+  font-weight: 700;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .note .note-text {
   outline: none;
   width: 100%;
   min-height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-word;
   cursor: text;
 }
 
-.note .resize-handle {
+.note .move-handle {
+  position: absolute;
+  top: -10px;
+  right: -42px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  background: #fff;
+  color: #555;
+  font-size: 13px;
+  cursor: grab;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.note .move-handle:active { cursor: grabbing; }
+
+.note .resize-handle-h {
   position: absolute;
   top: 0;
   right: 0;
-  bottom: 0;
+  bottom: 12px;
   width: 12px;
   cursor: ew-resize;
 }
-.note .resize-handle::after {
+.note .resize-handle-h::after {
   content: "";
   position: absolute;
   right: 3px;
@@ -324,6 +354,26 @@ button, input {
   width: 3px;
   height: 22px;
   transform: translateY(-50%);
+  background: rgba(0,0,0,0.18);
+  border-radius: 2px;
+}
+
+.note .resize-handle-v {
+  position: absolute;
+  left: 0;
+  right: 12px;
+  bottom: 0;
+  height: 12px;
+  cursor: ns-resize;
+}
+.note .resize-handle-v::after {
+  content: "";
+  position: absolute;
+  bottom: 3px;
+  left: 50%;
+  height: 3px;
+  width: 22px;
+  transform: translateX(-50%);
   background: rgba(0,0,0,0.18);
   border-radius: 2px;
 }

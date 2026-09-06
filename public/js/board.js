@@ -23,13 +23,28 @@ const canvasSpacer = document.querySelector(".board-canvas-inner-spacer");
 const addStickyBtn = document.getElementById("addStickyBtn");
 const addUnitBtn = document.getElementById("addUnitBtn");
 const captureBtn = document.getElementById("captureBtn");
+const homeBtn = document.getElementById("homeBtn");
+const leaveConfirmModal = document.getElementById("leaveConfirmModal");
+const cancelLeaveBtn = document.getElementById("cancelLeaveBtn");
+const confirmLeaveBtn = document.getElementById("confirmLeaveBtn");
 
 let schoolName = "";
 let draggingNoteId = null; // 드래그 중인 노트는 원격 위치 업데이트로 덮어쓰지 않는다
 let editingNoteId = null; // 편집 중인 노트는 원격 텍스트 업데이트로 덮어쓰지 않는다
-let resizingNoteId = null; // 크기 조정 중인 노트는 원격 너비 업데이트로 덮어쓰지 않는다
+let resizingNoteId = null; // 크기 조정 중인 노트는 원격 크기 업데이트로 덮어쓰지 않는다
 const noteElements = new Map(); // noteId -> element
 const textDebounceTimers = new Map();
+
+// ---------- 홈으로 나가기 (설명 후 확인) ----------
+homeBtn.addEventListener("click", () => {
+  leaveConfirmModal.classList.remove("hidden");
+});
+cancelLeaveBtn.addEventListener("click", () => {
+  leaveConfirmModal.classList.add("hidden");
+});
+confirmLeaveBtn.addEventListener("click", () => {
+  window.location.href = "index.html";
+});
 
 // ---------- 보드 정보 로드 ----------
 async function loadBoard() {
@@ -124,12 +139,18 @@ function createNoteElement(id, data) {
   el.style.left = `${data.x}px`;
   el.style.top = `${data.y}px`;
   if (data.width) el.style.width = `${data.width}px`;
+  if (data.height) el.style.height = `${data.height}px`;
   el.dataset.id = id;
 
   const text = document.createElement("div");
   text.className = "note-text";
   text.contentEditable = "true";
   text.textContent = data.text || "";
+
+  const moveHandle = document.createElement("button");
+  moveHandle.className = "move-handle";
+  moveHandle.textContent = "✥";
+  moveHandle.title = "이동";
 
   const delBtn = document.createElement("button");
   delBtn.className = "note-delete";
@@ -138,19 +159,28 @@ function createNoteElement(id, data) {
   delBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
   delBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
+    if (!window.confirm("이 메모를 삭제하시겠습니까?")) return;
     await deleteDoc(doc(db, "boards", boardId, "notes", id));
   });
 
-  const resizeHandle = document.createElement("div");
-  resizeHandle.className = "resize-handle";
-  resizeHandle.title = "드래그해서 폭 조정";
+  const resizeHandleH = document.createElement("div");
+  resizeHandleH.className = "resize-handle-h";
+  resizeHandleH.title = "드래그해서 폭 조정";
+
+  const resizeHandleV = document.createElement("div");
+  resizeHandleV.className = "resize-handle-v";
+  resizeHandleV.title = "드래그해서 높이 조정";
 
   el.appendChild(text);
+  el.appendChild(resizeHandleH);
+  el.appendChild(resizeHandleV);
+  el.appendChild(moveHandle);
   el.appendChild(delBtn);
-  el.appendChild(resizeHandle);
-  attachDragHandlers(el, id);
+
+  attachMoveHandlers(moveHandle, el, id);
   attachTextHandlers(text, id);
-  attachResizeHandlers(el, resizeHandle, id);
+  attachResizeHandler(resizeHandleH, el, id, "x");
+  attachResizeHandler(resizeHandleV, el, id, "y");
 
   boardCanvas.appendChild(el);
   noteElements.set(id, el);
@@ -163,8 +193,9 @@ function updateNoteElement(el, id, data) {
     el.style.left = `${data.x}px`;
     el.style.top = `${data.y}px`;
   }
-  if (resizingNoteId !== id && data.width) {
-    el.style.width = `${data.width}px`;
+  if (resizingNoteId !== id) {
+    if (data.width) el.style.width = `${data.width}px`;
+    if (data.height) el.style.height = `${data.height}px`;
   }
   const text = el.querySelector(".note-text");
   if (editingNoteId !== id && text.textContent !== (data.text || "")) {
@@ -173,81 +204,69 @@ function updateNoteElement(el, id, data) {
   refreshCanvasHeight();
 }
 
-// ---------- 드래그 ----------
-function attachDragHandlers(el, id) {
+// ---------- 이동 (휴지통 옆 ✥ 손잡이를 잡았을 때만 드래그된다) ----------
+function attachMoveHandlers(handle, el, id) {
   let startX = 0;
   let startY = 0;
   let startLeft = 0;
   let startTop = 0;
-  let moved = false;
-  let pointerId = null;
-
-  el.addEventListener("pointerdown", (e) => {
-    if (e.target.closest(".note-delete") || e.target.closest(".resize-handle")) return;
-
-    startX = e.clientX;
-    startY = e.clientY;
-    startLeft = parseFloat(el.style.left) || 0;
-    startTop = parseFloat(el.style.top) || 0;
-    moved = false;
-    pointerId = e.pointerId;
-  });
-
-  el.addEventListener("pointermove", (e) => {
-    if (pointerId === null || e.pointerId !== pointerId) return;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
-    if (!moved && Math.hypot(dx, dy) < 4) return;
-
-    if (!moved) {
-      moved = true;
-      draggingNoteId = id;
-      el.classList.add("dragging");
-      el.setPointerCapture(pointerId);
-      el.querySelector(".note-text").blur();
-    }
-    e.preventDefault();
-    el.style.left = `${startLeft + dx}px`;
-    el.style.top = `${startTop + dy}px`;
-  });
-
-  async function endDrag(e) {
-    if (pointerId === null || (e && e.pointerId !== pointerId)) return;
-    const wasMoved = moved;
-    pointerId = null;
-    moved = false;
-    if (wasMoved) {
-      el.classList.remove("dragging");
-      // 보드 밖으로 놓으면 가장 가까운 보드 안쪽 위치로 되돌린다 (좌우는 항상 안쪽으로, 위쪽은 0 이상으로)
-      const x = clampX(parseFloat(el.style.left) || 0, el.offsetWidth);
-      const y = Math.max(0, parseFloat(el.style.top) || 0);
-      el.style.left = `${x}px`;
-      el.style.top = `${y}px`;
-      draggingNoteId = null;
-      refreshCanvasHeight();
-      try {
-        await updateDoc(doc(db, "boards", boardId, "notes", id), { x, y });
-      } catch (err) {
-        console.error(err);
-      }
-    }
-  }
-
-  el.addEventListener("pointerup", endDrag);
-  el.addEventListener("pointercancel", endDrag);
-}
-
-// ---------- 크기 조정 (오른쪽 가장자리 손잡이로 폭만 조정, 세로 높이는 내용에 따라 자동) ----------
-function attachResizeHandlers(el, handle, id) {
-  let startX = 0;
-  let startWidth = 0;
   let pointerId = null;
 
   handle.addEventListener("pointerdown", (e) => {
     e.stopPropagation();
     e.preventDefault();
     startX = e.clientX;
-    startWidth = el.offsetWidth;
+    startY = e.clientY;
+    startLeft = parseFloat(el.style.left) || 0;
+    startTop = parseFloat(el.style.top) || 0;
+    pointerId = e.pointerId;
+    draggingNoteId = id;
+    el.classList.add("dragging");
+    handle.setPointerCapture(pointerId);
+  });
+
+  handle.addEventListener("pointermove", (e) => {
+    if (pointerId === null || e.pointerId !== pointerId) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    el.style.left = `${startLeft + dx}px`;
+    el.style.top = `${startTop + dy}px`;
+    refreshCanvasHeight();
+  });
+
+  async function endDrag(e) {
+    if (pointerId === null || (e && e.pointerId !== pointerId)) return;
+    pointerId = null;
+    el.classList.remove("dragging");
+    // 보드 밖으로 놓으면 가장 가까운 보드 안쪽 위치로 되돌린다 (좌우는 항상 안쪽으로, 위쪽은 0 이상으로)
+    const x = clampX(parseFloat(el.style.left) || 0, el.offsetWidth);
+    const y = Math.max(0, parseFloat(el.style.top) || 0);
+    el.style.left = `${x}px`;
+    el.style.top = `${y}px`;
+    draggingNoteId = null;
+    refreshCanvasHeight();
+    try {
+      await updateDoc(doc(db, "boards", boardId, "notes", id), { x, y });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  handle.addEventListener("pointerup", endDrag);
+  handle.addEventListener("pointercancel", endDrag);
+}
+
+// ---------- 크기 조정 (오른쪽 가장자리 = 폭, 아래쪽 가장자리 = 높이. 대각선 동시 조정은 없음) ----------
+function attachResizeHandler(handle, el, id, axis) {
+  let start = 0;
+  let startSize = 0;
+  let pointerId = null;
+
+  handle.addEventListener("pointerdown", (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    start = axis === "x" ? e.clientX : e.clientY;
+    startSize = axis === "x" ? el.offsetWidth : el.offsetHeight;
     pointerId = e.pointerId;
     resizingNoteId = id;
     handle.setPointerCapture(pointerId);
@@ -255,8 +274,10 @@ function attachResizeHandlers(el, handle, id) {
 
   handle.addEventListener("pointermove", (e) => {
     if (pointerId === null || e.pointerId !== pointerId) return;
-    const newWidth = Math.max(160, startWidth + (e.clientX - startX));
-    el.style.width = `${newWidth}px`;
+    const current = axis === "x" ? e.clientX : e.clientY;
+    const newSize = Math.max(axis === "x" ? 160 : 40, startSize + (current - start));
+    if (axis === "x") el.style.width = `${newSize}px`;
+    else el.style.height = `${newSize}px`;
     refreshCanvasHeight();
   });
 
@@ -265,6 +286,7 @@ function attachResizeHandlers(el, handle, id) {
     pointerId = null;
     resizingNoteId = null;
     const width = el.offsetWidth;
+    const height = el.offsetHeight;
     let x = parseFloat(el.style.left) || 0;
     const clampedX = clampX(x, width);
     if (clampedX !== x) {
@@ -273,7 +295,7 @@ function attachResizeHandlers(el, handle, id) {
     }
     refreshCanvasHeight();
     try {
-      await updateDoc(doc(db, "boards", boardId, "notes", id), { width, x });
+      await updateDoc(doc(db, "boards", boardId, "notes", id), { width, height, x });
     } catch (err) {
       console.error(err);
     }
@@ -283,7 +305,7 @@ function attachResizeHandlers(el, handle, id) {
   handle.addEventListener("pointercancel", endResize);
 }
 
-// ---------- 텍스트 편집 ----------
+// ---------- 텍스트 편집 (그 외 영역은 클릭하면 그냥 커서만 놓인다) ----------
 function attachTextHandlers(textEl, id) {
   textEl.addEventListener("focus", () => {
     editingNoteId = id;

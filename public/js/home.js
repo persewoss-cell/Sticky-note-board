@@ -47,6 +47,15 @@ createBoardBtn.addEventListener("click", () => {
 
 cancelCreateBtn.addEventListener("click", () => closeModal(createModal));
 
+[schoolNameInput, schoolPwInput].forEach((input) => {
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      confirmCreateBtn.click();
+    }
+  });
+});
+
 confirmCreateBtn.addEventListener("click", async () => {
   const schoolName = schoolNameInput.value.trim();
   const rawPassword = schoolPwInput.value.trim();
@@ -95,6 +104,13 @@ function askPassword(boardId, mode) {
 cancelPasswordBtn.addEventListener("click", () => {
   pendingAction = null;
   closeModal(passwordModal);
+});
+
+passwordInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    confirmPasswordBtn.click();
+  }
 });
 
 confirmPasswordBtn.addEventListener("click", async () => {
