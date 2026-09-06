@@ -3,15 +3,15 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>연수 협업 보드판</title>
+<title>브레인스토밍 협업 보드판</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header class="top-bar">
-    <h1>연수 협업 보드판</h1>
-    <button id="createBoardBtn" class="btn btn-primary">+ 보드판 만들기</button>
+    <h1>브레인스토밍 협업 보드판</h1>
+    <button id="createBoardBtn" class="btn btn-primary btn-hero">+ 보드판 만들기</button>
   </header>
 
   <main class="page-content">
@@ -28,8 +28,8 @@
       <h2>새 보드판 만들기</h2>
       <label for="schoolNameInput">학교명</label>
       <input type="text" id="schoolNameInput" placeholder="예: 희망초등학교" maxlength="30">
-      <label for="schoolPwInput">비밀번호 (숫자 4자리)</label>
-      <input type="password" id="schoolPwInput" placeholder="0000" maxlength="4" inputmode="numeric" pattern="[0-9]*">
+      <label for="schoolPwInput">비밀번호 (숫자 4자리, 비워두면 0000)</label>
+      <input type="password" id="schoolPwInput" placeholder="비워두면 0000" maxlength="4" inputmode="numeric" pattern="[0-9]*">
       <p id="createError" class="error-text hidden"></p>
       <div class="modal-actions">
         <button id="cancelCreateBtn" class="btn btn-secondary">취소</button>

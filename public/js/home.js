@@ -49,7 +49,8 @@ cancelCreateBtn.addEventListener("click", () => closeModal(createModal));
 
 confirmCreateBtn.addEventListener("click", async () => {
   const schoolName = schoolNameInput.value.trim();
-  const password = schoolPwInput.value.trim();
+  const rawPassword = schoolPwInput.value.trim();
+  const password = rawPassword === "" ? "0000" : rawPassword;
 
   if (!schoolName) {
     createError.textContent = "학교명을 입력해 주세요.";
@@ -64,17 +65,17 @@ confirmCreateBtn.addEventListener("click", async () => {
 
   confirmCreateBtn.disabled = true;
   try {
-    await addDoc(collection(db, "boards"), {
+    const boardRef = await addDoc(collection(db, "boards"), {
       schoolName,
       password,
       createdAt: serverTimestamp(),
     });
-    closeModal(createModal);
+    // 방금 만든 보드판은 비밀번호를 다시 물어보지 않고 바로 입장시킨다.
+    window.location.href = `board.html?id=${boardRef.id}`;
   } catch (err) {
     createError.textContent = "생성 중 오류가 발생했습니다. 다시 시도해 주세요.";
     createError.classList.remove("hidden");
     console.error(err);
-  } finally {
     confirmCreateBtn.disabled = false;
   }
 });
