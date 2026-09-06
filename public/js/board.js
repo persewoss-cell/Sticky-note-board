@@ -276,6 +276,17 @@ function attachMoveHandlers(handle, el, id) {
 const MIN_NOTE_WIDTH = 160;
 const MIN_NOTE_HEIGHT = 40;
 
+// note-text는 min-height:100%로 박스를 항상 꽉 채우기 때문에, 한 번 늘려 놓으면
+// scrollHeight가 "늘어난 만큼"을 그대로 돌려준다. 글자가 실제로 필요로 하는
+// 높이만 알아내기 위해 잠깐 min-height를 0으로 풀었다가 다시 되돌려 측정한다.
+function measureNaturalTextHeight(textEl) {
+  const prevMinHeight = textEl.style.minHeight;
+  textEl.style.minHeight = "0px";
+  const height = textEl.scrollHeight;
+  textEl.style.minHeight = prevMinHeight;
+  return height;
+}
+
 function attachResizeHandler(handle, el, id, edges) {
   const textEl = el.querySelector(".note-text");
   let startX = 0;
@@ -322,7 +333,7 @@ function attachResizeHandler(handle, el, id, edges) {
     let top = startTop;
     if (edges.bottom || edges.top) {
       // 글자가 실제로 차지하는 범위보다 작게는 줄어들지 않게 한다
-      const minHeight = Math.max(MIN_NOTE_HEIGHT, textEl.scrollHeight + verticalChrome);
+      const minHeight = Math.max(MIN_NOTE_HEIGHT, measureNaturalTextHeight(textEl) + verticalChrome);
       if (edges.bottom) {
         height = Math.max(minHeight, startHeight + dy);
       } else {
