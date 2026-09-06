@@ -1,0 +1,17 @@
+rules_version = '2';
+
+// 로그인 시스템이 없는 내부용(연수) 도구입니다.
+// 방 입장/삭제 시 4자리 비밀번호 확인은 클라이언트(앱) 단에서 처리하며,
+// 이 규칙은 그 앱을 통해 정상적으로 사용하는 것을 막지 않기 위해 읽기/쓰기를 열어둡니다.
+// 민감한 개인정보를 다루지 않는 용도로만 사용하세요.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /boards/{boardId} {
+      allow read, create, update, delete: if true;
+
+      match /notes/{noteId} {
+        allow read, create, update, delete: if true;
+      }
+    }
+  }
+}
