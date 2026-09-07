@@ -22,6 +22,7 @@ const boardCanvas = document.getElementById("boardCanvas");
 const canvasSpacer = document.querySelector(".board-canvas-inner-spacer");
 const addStickyBtn = document.getElementById("addStickyBtn");
 const addUnitBtn = document.getElementById("addUnitBtn");
+const addCategoryBtn = document.getElementById("addCategoryBtn");
 const captureBtn = document.getElementById("captureBtn");
 const homeBtn = document.getElementById("homeBtn");
 const leaveConfirmModal = document.getElementById("leaveConfirmModal");
@@ -112,6 +113,22 @@ addUnitBtn.addEventListener("click", async () => {
   });
 });
 
+addCategoryBtn.addEventListener("click", async () => {
+  const categories = ["지식·이해", "과정·기능", "가치·태도"];
+  const { x: baseX, y } = nextSpawnPosition();
+  const stepWidth = Math.min(340, boardCanvas.clientWidth * 0.6) + 20;
+  for (let i = 0; i < categories.length; i++) {
+    const x = clampX(baseX + i * stepWidth, Math.min(340, boardCanvas.clientWidth * 0.6));
+    await addDoc(collection(db, "boards", boardId, "notes"), {
+      type: "category",
+      text: categories[i],
+      x,
+      y,
+      createdAt: serverTimestamp(),
+    });
+  }
+});
+
 // ---------- 사진 캡쳐 ----------
 captureBtn.addEventListener("click", async () => {
   captureBtn.disabled = true;
@@ -166,7 +183,8 @@ function createNoteElement(id, data) {
   delBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
   delBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
-    if (!window.confirm("이 메모를 삭제하시겠습니까?")) return;
+    const entered = window.prompt("삭제하려면 관리자 비밀번호를 입력하세요");
+    if (entered !== "7279") return;
     await deleteDoc(doc(db, "boards", boardId, "notes", id));
   });
 

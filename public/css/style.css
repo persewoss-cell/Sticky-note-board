@@ -11,6 +11,8 @@
   --text: #2b2b2b;
   --sticky: #ffe066;
   --sticky-edge: #e8c94a;
+  --category: #2f9e64;
+  --category-dark: #237b4d;
 }
 
 * { box-sizing: border-box; }
@@ -44,6 +46,9 @@ button, input {
 
 .btn-unit { background: var(--unit); color: #fff; }
 .btn-unit:hover { background: var(--unit-dark); }
+
+.btn-category { background: var(--category); color: #fff; }
+.btn-category:hover { background: var(--category-dark); }
 
 .btn-secondary { background: var(--secondary-bg); color: var(--text); }
 .btn-secondary:hover { background: #d1d5db; }
@@ -292,8 +297,8 @@ button, input {
   font-size: 16px;
 }
 
-.note.unit {
-  background: var(--unit);
+.note.unit,
+.note.category {
   color: #fff;
   min-height: 44px;
   height: auto;
@@ -307,6 +312,9 @@ button, input {
   justify-content: center;
   text-align: center;
 }
+
+.note.unit { background: var(--unit); }
+.note.category { background: var(--category); }
 
 .note .note-text {
   outline: none;
