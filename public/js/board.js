@@ -113,19 +113,33 @@ addUnitBtn.addEventListener("click", async () => {
   });
 });
 
+// 범주 박스는 기본 너비 대신 글자 길이에 맞춰(너무 딱 붙지는 않게 여유를 두고) 생성한다
+function measureCategoryWidth(text) {
+  const canvas = measureCategoryWidth._canvas || (measureCategoryWidth._canvas = document.createElement("canvas"));
+  const ctx = canvas.getContext("2d");
+  ctx.font = "700 21px 'Noto Sans KR', sans-serif";
+  const textWidth = ctx.measureText(text).width;
+  const horizontalPadding = 32; // .note 좌우 padding 16px * 2
+  const breathingRoom = 56; // 글자에 딱 붙지 않도록 여유
+  return Math.max(180, Math.ceil(textWidth + horizontalPadding + breathingRoom));
+}
+
 addCategoryBtn.addEventListener("click", async () => {
   const categories = ["지식·이해", "과정·기능", "가치·태도"];
   const { x: baseX, y } = nextSpawnPosition();
-  const stepWidth = Math.min(340, boardCanvas.clientWidth * 0.6) + 20;
-  for (let i = 0; i < categories.length; i++) {
-    const x = clampX(baseX + i * stepWidth, Math.min(340, boardCanvas.clientWidth * 0.6));
+  let x = baseX;
+  for (const text of categories) {
+    const width = measureCategoryWidth(text);
+    x = clampX(x, width);
     await addDoc(collection(db, "boards", boardId, "notes"), {
       type: "category",
-      text: categories[i],
+      text,
       x,
       y,
+      width,
       createdAt: serverTimestamp(),
     });
+    x += width + 20;
   }
 });
 
@@ -183,8 +197,7 @@ function createNoteElement(id, data) {
   delBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
   delBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
-    const entered = window.prompt("삭제하려면 관리자 비밀번호를 입력하세요");
-    if (entered !== "7279") return;
+    if (!window.confirm("이 메모를 삭제하시겠습니까?")) return;
     await deleteDoc(doc(db, "boards", boardId, "notes", id));
   });
 

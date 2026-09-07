@@ -50,6 +50,9 @@ button, input {
 .btn-category { background: var(--category); color: #fff; }
 .btn-category:hover { background: var(--category-dark); }
 
+.btn-sticky { background: var(--sticky); color: var(--text); }
+.btn-sticky:hover { background: var(--sticky-edge); }
+
 .btn-secondary { background: var(--secondary-bg); color: var(--text); }
 .btn-secondary:hover { background: #d1d5db; }
 
