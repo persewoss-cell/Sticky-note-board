@@ -124,13 +124,18 @@ function measureCategoryWidth(text) {
   return Math.max(180, Math.ceil(textWidth + horizontalPadding + breathingRoom));
 }
 
+// 범주 박스 3개는 화면 왼쪽 끝에 세로로 나란히 배치한다 (지식·이해 / 과정·기능 / 가치·태도)
+const CATEGORY_LEFT_X = 24;
+const CATEGORY_ROW_GAP = 156;
+
 addCategoryBtn.addEventListener("click", async () => {
   const categories = ["지식·이해", "과정·기능", "가치·태도"];
-  const { x: baseX, y } = nextSpawnPosition();
-  let x = baseX;
-  for (const text of categories) {
+  const baseY = boardCanvas.scrollTop + 137;
+  for (let i = 0; i < categories.length; i++) {
+    const text = categories[i];
     const width = measureCategoryWidth(text);
-    x = clampX(x, width);
+    const x = clampX(CATEGORY_LEFT_X, width);
+    const y = baseY + i * CATEGORY_ROW_GAP;
     await addDoc(collection(db, "boards", boardId, "notes"), {
       type: "category",
       text,
@@ -139,7 +144,6 @@ addCategoryBtn.addEventListener("click", async () => {
       width,
       createdAt: serverTimestamp(),
     });
-    x += width + 20;
   }
 });
 
