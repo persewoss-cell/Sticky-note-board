@@ -2,6 +2,7 @@ import { db } from "./firebase.js";
 import {
   doc,
   getDoc,
+  setDoc,
   deleteDoc,
   updateDoc,
   addDoc,
@@ -23,6 +24,9 @@ const canvasSpacer = document.querySelector(".board-canvas-inner-spacer");
 const addStickyBtn = document.getElementById("addStickyBtn");
 const addUnitBtn = document.getElementById("addUnitBtn");
 const addCategoryBtn = document.getElementById("addCategoryBtn");
+const undoBtn = document.getElementById("undoBtn");
+const redoBtn = document.getElementById("redoBtn");
+const saveBtn = document.getElementById("saveBtn");
 const captureBtn = document.getElementById("captureBtn");
 const homeBtn = document.getElementById("homeBtn");
 const leaveConfirmModal = document.getElementById("leaveConfirmModal");
@@ -42,6 +46,90 @@ function bringToFront(el) {
   frontZIndex += 1;
   el.style.zIndex = frontZIndex;
 }
+
+// ---------- 알림 토스트 ----------
+let toastEl = null;
+let toastTimer = null;
+function showToast(message) {
+  if (!toastEl) {
+    toastEl = document.createElement("div");
+    toastEl.className = "board-toast";
+    document.body.appendChild(toastEl);
+  }
+  toastEl.textContent = message;
+  toastEl.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2000);
+}
+
+// ---------- 실행취소 / 되돌리기 ----------
+const MAX_HISTORY = 50;
+let undoStack = [];
+let redoStack = [];
+
+function updateHistoryButtons() {
+  undoBtn.disabled = undoStack.length === 0;
+  redoBtn.disabled = redoStack.length === 0;
+}
+
+function pushHistory(action) {
+  undoStack.push(action);
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack = [];
+  updateHistoryButtons();
+}
+
+async function applyHistoryAction(action, direction) {
+  const noteRef = (id) => doc(db, "boards", boardId, "notes", id);
+  if (action.type === "update") {
+    await updateDoc(noteRef(action.id), direction === "undo" ? action.before : action.after);
+  } else if (action.type === "delete") {
+    if (direction === "undo") await setDoc(noteRef(action.id), action.data);
+    else await deleteDoc(noteRef(action.id));
+  } else if (action.type === "add") {
+    if (direction === "undo") {
+      await Promise.all(action.ids.map((id) => deleteDoc(noteRef(id))));
+    } else {
+      await Promise.all(
+        action.ids.map((id) =>
+          setDoc(noteRef(id), { ...action.dataById[id], createdAt: serverTimestamp() })
+        )
+      );
+    }
+  }
+}
+
+async function undo() {
+  const action = undoStack.pop();
+  if (!action) return;
+  try {
+    await applyHistoryAction(action, "undo");
+    redoStack.push(action);
+  } catch (err) {
+    console.error(err);
+    undoStack.push(action);
+    showToast("실행취소 중 오류가 발생했습니다.");
+  }
+  updateHistoryButtons();
+}
+
+async function redo() {
+  const action = redoStack.pop();
+  if (!action) return;
+  try {
+    await applyHistoryAction(action, "redo");
+    undoStack.push(action);
+  } catch (err) {
+    console.error(err);
+    redoStack.push(action);
+    showToast("되돌리기 중 오류가 발생했습니다.");
+  }
+  updateHistoryButtons();
+}
+
+undoBtn.addEventListener("click", undo);
+redoBtn.addEventListener("click", redo);
+updateHistoryButtons();
 
 // ---------- 홈으로 나가기 (설명 후 확인) ----------
 homeBtn.addEventListener("click", () => {
@@ -93,24 +181,22 @@ function nextSpawnPosition() {
 
 addStickyBtn.addEventListener("click", async () => {
   const { x, y } = nextSpawnPosition();
-  await addDoc(collection(db, "boards", boardId, "notes"), {
-    type: "sticky",
-    text: "",
-    x,
-    y,
+  const noteData = { type: "sticky", text: "", x, y };
+  const ref = await addDoc(collection(db, "boards", boardId, "notes"), {
+    ...noteData,
     createdAt: serverTimestamp(),
   });
+  pushHistory({ type: "add", ids: [ref.id], dataById: { [ref.id]: noteData } });
 });
 
 addUnitBtn.addEventListener("click", async () => {
   const { x, y } = nextSpawnPosition();
-  await addDoc(collection(db, "boards", boardId, "notes"), {
-    type: "unit",
-    text: "",
-    x,
-    y,
+  const noteData = { type: "unit", text: "", x, y };
+  const ref = await addDoc(collection(db, "boards", boardId, "notes"), {
+    ...noteData,
     createdAt: serverTimestamp(),
   });
+  pushHistory({ type: "add", ids: [ref.id], dataById: { [ref.id]: noteData } });
 });
 
 // 범주 박스는 기본 너비 대신 글자 길이에 맞춰(너무 딱 붙지는 않게 여유를 두고) 생성한다
@@ -131,19 +217,45 @@ const CATEGORY_ROW_GAP = 156;
 addCategoryBtn.addEventListener("click", async () => {
   const categories = ["지식·이해", "과정·기능", "가치·태도"];
   const baseY = boardCanvas.scrollTop + 137;
+  const ids = [];
+  const dataById = {};
   for (let i = 0; i < categories.length; i++) {
     const text = categories[i];
     const width = measureCategoryWidth(text);
     const x = clampX(CATEGORY_LEFT_X, width);
     const y = baseY + i * CATEGORY_ROW_GAP;
-    await addDoc(collection(db, "boards", boardId, "notes"), {
-      type: "category",
-      text,
-      x,
-      y,
-      width,
+    const noteData = { type: "category", text, x, y, width };
+    const ref = await addDoc(collection(db, "boards", boardId, "notes"), {
+      ...noteData,
       createdAt: serverTimestamp(),
     });
+    ids.push(ref.id);
+    dataById[ref.id] = noteData;
+  }
+  pushHistory({ type: "add", ids, dataById });
+});
+
+// ---------- 저장 (편집 중인 텍스트를 debounce 없이 즉시 반영) ----------
+saveBtn.addEventListener("click", async () => {
+  saveBtn.disabled = true;
+  try {
+    const pendingWrites = [];
+    textDebounceTimers.forEach((timer, id) => {
+      clearTimeout(timer);
+      const el = noteElements.get(id);
+      if (el) {
+        const text = el.querySelector(".note-text").textContent;
+        pendingWrites.push(updateDoc(doc(db, "boards", boardId, "notes", id), { text }));
+      }
+    });
+    textDebounceTimers.clear();
+    await Promise.all(pendingWrites);
+    showToast("저장되었습니다.");
+  } catch (err) {
+    console.error(err);
+    showToast("저장 중 오류가 발생했습니다.");
+  } finally {
+    saveBtn.disabled = false;
   }
 });
 
@@ -183,6 +295,7 @@ function createNoteElement(id, data) {
   if (data.width) el.style.width = `${data.width}px`;
   if (data.height) el.style.height = `${data.height}px`;
   el.dataset.id = id;
+  el.dataset.type = data.type;
 
   const text = document.createElement("div");
   text.className = "note-text";
@@ -202,7 +315,13 @@ function createNoteElement(id, data) {
   delBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
     if (!window.confirm("이 메모를 삭제하시겠습니까?")) return;
-    await deleteDoc(doc(db, "boards", boardId, "notes", id));
+    const data = collectNoteData(el);
+    try {
+      await deleteDoc(doc(db, "boards", boardId, "notes", id));
+      pushHistory({ type: "delete", id, data });
+    } catch (err) {
+      console.error(err);
+    }
   });
 
   el.appendChild(text);
@@ -236,6 +355,19 @@ function createNoteElement(id, data) {
   bringToFront(el);
   refreshCanvasHeight();
   return el;
+}
+
+// 실행취소를 위해 삭제되기 직전 노트의 현재 상태를 그러모은다
+function collectNoteData(el) {
+  const data = {
+    type: el.dataset.type,
+    text: el.querySelector(".note-text").textContent,
+    x: parseFloat(el.style.left) || 0,
+    y: parseFloat(el.style.top) || 0,
+  };
+  if (el.style.width) data.width = parseFloat(el.style.width);
+  if (el.style.height) data.height = parseFloat(el.style.height);
+  return data;
 }
 
 function updateNoteElement(el, id, data) {
@@ -298,6 +430,9 @@ function attachMoveHandlers(handle, el, id) {
     refreshCanvasHeight();
     try {
       await updateDoc(doc(db, "boards", boardId, "notes", id), { x, y });
+      if (x !== startLeft || y !== startTop) {
+        pushHistory({ type: "update", id, before: { x: startLeft, y: startTop }, after: { x, y } });
+      }
     } catch (err) {
       console.error(err);
     }
@@ -397,6 +532,14 @@ function attachResizeHandler(handle, el, id, edges) {
     refreshCanvasHeight();
     try {
       await updateDoc(doc(db, "boards", boardId, "notes", id), { width, height, x, y });
+      if (width !== startWidth || height !== startHeight || x !== startLeft || y !== startTop) {
+        pushHistory({
+          type: "update",
+          id,
+          before: { width: startWidth, height: startHeight, x: startLeft, y: startTop },
+          after: { width, height, x, y },
+        });
+      }
     } catch (err) {
       console.error(err);
     }
@@ -408,8 +551,11 @@ function attachResizeHandler(handle, el, id, edges) {
 
 // ---------- 텍스트 편집 (그 외 영역은 클릭하면 그냥 커서만 놓인다) ----------
 function attachTextHandlers(textEl, el, id) {
+  let textAtFocus = textEl.textContent;
+
   textEl.addEventListener("focus", () => {
     editingNoteId = id;
+    textAtFocus = textEl.textContent;
     bringToFront(el);
   });
 
@@ -426,9 +572,14 @@ function attachTextHandlers(textEl, el, id) {
   textEl.addEventListener("blur", () => {
     if (editingNoteId === id) editingNoteId = null;
     clearTimeout(textDebounceTimers.get(id));
-    updateDoc(doc(db, "boards", boardId, "notes", id), {
-      text: textEl.textContent,
-    }).catch((err) => console.error(err));
+    const newText = textEl.textContent;
+    updateDoc(doc(db, "boards", boardId, "notes", id), { text: newText })
+      .then(() => {
+        if (newText !== textAtFocus) {
+          pushHistory({ type: "update", id, before: { text: textAtFocus }, after: { text: newText } });
+        }
+      })
+      .catch((err) => console.error(err));
   });
 }
 
